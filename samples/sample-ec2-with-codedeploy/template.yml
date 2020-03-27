@@ -1,4 +1,4 @@
-# // Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# // Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # // SPDX-License-Identifier: Apache-2.0
 
 AWSTemplateFormatVersion: '2010-09-09'
@@ -85,7 +85,7 @@ Resources:
           - DEPLOYMENT_FAILURE
       DeploymentGroupName: !Sub "${Environment}-${ApplicationName}"
       DeploymentConfigName: "CodeDeployDefault.OneAtATime"
-      ServiceRoleArn: !ImportValue "CodeDeployServiceRoleArn"
+      ServiceRoleArn: !ImportValue CodeDeployRoleArn
       DeploymentStyle:
         DeploymentOption: WITH_TRAFFIC_CONTROL
       LoadBalancerInfo:
@@ -97,7 +97,7 @@ Resources:
     Type: "AWS::AutoScaling::LaunchConfiguration"
     Properties:
       AssociatePublicIpAddress: false
-      IamInstanceProfile: !ImportValue "DefaultInstanceProfile"
+      IamInstanceProfile: !ImportValue GlobalInstanceProfileName
       ImageId: !Ref "ImageId"
       InstanceType: !Ref "InstanceType"
       KeyName: !Ref "KeyPair"
@@ -247,8 +247,8 @@ Resources:
       PolicyType: "SimpleScaling"
       ScalingAdjustment: 1
 Outputs:
-  ExternalUrl:
+  LoadBalancerExternalUrl:
     Description: The url of the external load balancer
     Value: !Join ['', ['http://', !GetAtt 'PublicLoadBalancer.DNSName']]
     Export:
-      Name: 'ExternalUrl'
+      Name: 'LoadBalancerExternalUrl'

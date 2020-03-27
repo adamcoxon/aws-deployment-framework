@@ -1,4 +1,4 @@
-# Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
 
 """
@@ -17,6 +17,5 @@ class Cache:
             return self._stash[key]
         except KeyError:
             return None
-
     def add(self, key, value):
         self._stash[key] = value

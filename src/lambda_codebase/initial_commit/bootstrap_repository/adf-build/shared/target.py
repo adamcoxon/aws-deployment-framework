@@ -1,4 +1,4 @@
-# Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
 
 """
@@ -8,7 +8,15 @@ require mutation depending on their structure.
 """
 
 import re
+import os
 from errors import InvalidDeploymentMapError, NoAccountsFoundError
+from logger import configure_logger
+from schema_validation import AWS_ACCOUNT_ID_REGEX_STR
+
+
+LOGGER = configure_logger(__name__)
+ADF_DEPLOYMENT_ACCOUNT_ID = os.environ["ACCOUNT_ID"]
+AWS_ACCOUNT_ID_REGEX = re.compile(AWS_ACCOUNT_ID_REGEX_STR)
 
 
 class TargetStructure:
@@ -26,20 +34,24 @@ class TargetStructure:
         if isinstance(target, (int, str)):
             target = [{"path": [target]}]
         if isinstance(target, dict):
-            if not isinstance(target.get('path'), list):
+            if target.get('target'):
+                target["path"] = target.get('target')
+            if not target.get('path') and not target.get('tags'):
+                target["path"] = '/deployment'
+                LOGGER.debug('No path/target detected, defaulting to /deployment')
+            if not isinstance(target.get('path', []), list):
                 target["path"] = [target.get('path')]
-
         if not isinstance(target, list):
             target = [target]
-
         return target
 
 
-class Target():
-    def __init__(self, path, regions, target_structure, organizations, step_name, params):
+class Target:
+    def __init__(self, path, target_structure, organizations, step, regions):
         self.path = path
-        self.step_name = step_name or ''
-        self.params = params or {}
+        self.step_name = step.get('name', '')
+        self.provider = step.get('provider', {})
+        self.properties = step.get('properties', {})
         self.regions = [regions] if not isinstance(regions, list) else regions
         self.target_structure = target_structure
         self.organizations = organizations
@@ -50,11 +62,12 @@ class Target():
 
     def _create_target_info(self, name, account_id):
         return {
-            "name": re.sub(r'[^A-Za-z0-9.@\-_]+', '', name),
             "id": account_id,
+            "name": re.sub(r'[^A-Za-z0-9.@\-_]+', '', name),
             "path": self.path,
+            "properties": self.properties,
+            "provider": self.provider,
             "regions": self.regions,
-            "params": self.params,
             "step_name": re.sub(r'[^A-Za-z0-9.@\-_]+', '', self.step_name)
         }
 
@@ -67,9 +80,9 @@ class Target():
         )
 
     def _create_response_object(self, responses):
-        _accounts = 0
+        _entities = 0
         for response in responses:
-            _accounts += 1
+            _entities += 1
             if Target._account_is_active(response):
                 self.target_structure.account_list.append(
                     self._create_target_info(
@@ -77,7 +90,7 @@ class Target():
                         str(response.get('Id'))
                     )
                 )
-        if _accounts == 0:
+        if _entities == 0:
             raise NoAccountsFoundError("No Accounts found in {0}".format(self.path))
 
     def _target_is_account_id(self):
@@ -85,6 +98,14 @@ class Target():
             AccountId=str(self.path)
         ).get('Account')
         self._create_response_object([responses])
+
+    def _target_is_tags(self):
+        responses = self.organizations.get_account_ids_for_tags(self.path)
+        accounts = []
+        for response in responses:
+            account = self.organizations.client.describe_account(AccountId=response).get('Account')
+            accounts.append(account)
+        self._create_response_object(accounts)
 
     def _target_is_ou_id(self):
         responses = self.organizations.get_accounts_for_parent(
@@ -96,17 +117,43 @@ class Target():
         responses = self.organizations.dir_to_ou(self.path)
         self._create_response_object(responses)
 
+    def _target_is_null_path(self):
+        self.path = '/deployment' # TODO we will fetch this from parameter store
+        responses = self.organizations.dir_to_ou(self.path)
+        self._create_response_object(responses)
+
     def fetch_accounts_for_target(self):
         if self.path == 'approval':
             return self._target_is_approval()
-
-        if (str(self.path)).startswith('ou-'):
+        if isinstance(self.path, dict):
+            return self._target_is_tags()
+        if str(self.path).startswith('ou-'):
             return self._target_is_ou_id()
-
-        if (str(self.path).isnumeric() and len(str(self.path)) == 12):
+        if AWS_ACCOUNT_ID_REGEX.match(str(self.path)):
             return self._target_is_account_id()
-
-        if (str(self.path)).startswith('/'):
+        if str(self.path).isnumeric():
+            LOGGER.warning(
+                "The specified path is numeric, but is not 12 chars long. "
+                "This typically happens when you specify the account id as a "
+                "number, while the account id starts with a zero. If this is "
+                "the case, please wrap the account id in quotes to make it a "
+                "string. The current path is interpreted as '%s'. "
+                "It could be interpreted as an octal number due to the zero, "
+                "so it might not match the account id as specified in the "
+                "deployment map. Interpreted as an octal it would be '%s'. "
+                "This error is thrown to be on the safe side such that it "
+                "is not targeting the wrong account by accident.",
+                str(self.path),
+                # Optimistically convert the path from 10-base to octal 8-base
+                # Then remove the use of the 'o' char, as it will output
+                # in the correct way, starting with: 0o.
+                str(oct(int(self.path))).replace('o', ''),
+            )
+        if str(self.path).startswith('/'):
             return self._target_is_ou_path()
-
-        raise InvalidDeploymentMapError("Unknown defintion for target: {0}".format(self.path))
+        if self.path is None:
+            # No path/target has been passed, path will default to /deployment
+            return self._target_is_null_path()
+        raise InvalidDeploymentMapError(
+            "Unknown definition for target: {0}".format(self.path)
+        )

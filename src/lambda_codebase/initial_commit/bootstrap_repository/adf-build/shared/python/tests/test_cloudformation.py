@@ -1,4 +1,4 @@
-# Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
 
 # pylint: skip-file
@@ -9,7 +9,7 @@ from pytest import fixture
 from stubs import stub_cloudformation
 from mock import Mock
 
-from cloudformation import CloudFormation
+from cloudformation import CloudFormation, StackProperties
 from s3 import S3
 
 s3 = S3('us-east-1', 'some_bucket')
@@ -96,3 +96,15 @@ def test_get_waiter_type_create_complete(global_cls):
     global_cls.client = Mock()
     global_cls.client.describe_stacks.return_value = {'Stacks': []}
     assert global_cls._get_waiter_type() == 'stack_create_complete'
+
+
+def test_get_stack_name_remove_unaccepted_chars():
+    for unaccepted_char in [' ', '%', '$', '*']:
+        props = StackProperties(
+            region='eu-west-1',
+            deployment_account_region='eu-west-1',
+            stack_name=None,
+            s3=None,
+            s3_key_path='/some/weird{}location'.format(unaccepted_char),
+        )
+        assert props._get_stack_name() == 'adf-global-base-weird-location'

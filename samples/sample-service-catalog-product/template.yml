@@ -1,4 +1,4 @@
-# // Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# // Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # // SPDX-License-Identifier: Apache-2.0
 
 AWSTemplateFormatVersion: '2010-09-09'
@@ -50,5 +50,5 @@ Resources:
     Type: "AWS::ServiceCatalog::PortfolioPrincipalAssociation"
     Properties:
       PortfolioId: !Ref Portfolio
-      PrincipalARN: !ImportValue DevelopersIAMGroupARN
+      PrincipalARN: !ImportValue SampleDevelopersIAMGroupArn
       PrincipalType: "IAM"

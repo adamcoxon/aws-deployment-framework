@@ -1,4 +1,4 @@
-# // Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# // Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # // SPDX-License-Identifier: Apache-2.0
 
 AWSTemplateFormatVersion: '2010-09-09'
@@ -9,21 +9,13 @@ Resources:
   DevelopersIAMGroup:
     Type: AWS::IAM::Group
     Properties: 
-      GroupName: sample-developers
+      GroupName: adf-sample-developers-group
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/AWSServiceCatalogEndUserFullAccess'
         - 'arn:aws:iam::aws:policy/AWSCloud9User'
         - 'arn:aws:iam::aws:policy/AWSCloudFormationReadOnlyAccess'
         - 'arn:aws:iam::aws:policy/AWSCodeCommitFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess'
-  SampleDeveloper:
-    Type: AWS::IAM::User
-    Properties:
-      Groups: 
-        - !Ref DevelopersIAMGroup
-      LoginProfile:
-        Password: 'sample-password' # Use Secrets Manager -> https://aws.amazon.com/blogs/security/how-to-create-and-retrieve-secrets-managed-in-aws-secrets-manager-using-aws-cloudformation-template/
-      UserName: sample-developer
   GlobalInstanceProfile:
     Type: "AWS::IAM::InstanceProfile"
     Properties:
@@ -86,18 +78,18 @@ Resources:
         - "arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole"
       RoleName: "codedeploy-service-role"
 Outputs:
-  DevelopersIAMGroupARN:
+  DevelopersIAMGroup:
     Description: The ARN of the Developers IAM Group to be exported.
     Export:
-      Name: DevelopersIAMGroupARN
+      Name: SampleDevelopersIAMGroupArn
     Value: !GetAtt DevelopersIAMGroup.Arn
-  CodeDeployRoleARN:
-    Description: The ARN of the Developers IAM Group to be exported.
+  CodeDeployRole:
+    Description: The ARN of the CodeDeploy Service Role Arn to be exported.
     Export:
-      Name: CodeDeployRoleARN
+      Name: CodeDeployRoleArn
     Value: !GetAtt CodeDeployServiceRole.Arn
-  DefaultInstanceManagedPolicyArn:
-    Description: "The ARN of the Default EC2 Instance Managed Policy to be imported into application stacks"
-    Value: !Ref "DefaultInstanceManagedPolicy"
+  GlobalInstanceProfile:
+    Description: "The ARN of the Default EC2 Instance Role to be imported into application stacks"
+    Value: !Ref GlobalInstanceProfile
     Export:
-      Name: "DefaultInstanceManagedPolicyArn"
+      Name: GlobalInstanceProfileName
